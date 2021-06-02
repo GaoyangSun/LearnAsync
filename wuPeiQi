@@ -1,0 +1,119 @@
+await func() -> Ipython
+asyncio.run(func()) -> python
+
+// 不是每个async必须跟await
+async def func():
+    # await asyncio.sleep(2) 如果不需要进行sleep，可以不加这一行
+    print(1)
+result = func()
+asyncio.run(result)
+
+// 标准应用，func切到others
+async def others():
+    print('others start')
+    await asyncio.sleep(1) # asyncio.sleep(1)前必须加await，否则程序不知道你要切换线程
+    print('others end')
+
+async def func():
+    print('func start')
+    response = await others()
+    print('fund end')
+    return response
+
+asyncio.run(func())
+
+// timeout = 1 -> 1s内没有返回值就不再等待，两个任务都放到pending中
+async def func():
+    print('func start')
+    await asyncio.sleep(2)
+    print('func end')
+
+async def main():
+    print('main start')
+    task_list = [
+        asyncio.create_task(func()),
+        asyncio.create_task(func())
+        ]
+    print('main end')
+    done, pending = await asyncio.wait(task_list, timeout=1)
+    print('done ', done)
+    print('pending ', pending)
+asyncio.run(main())
+
+/ main函数替代
+task_list = [func(), func()]
+done, pending = asyncio.run(asyncio.wait(task_list)) # task_list不是协程对象，需要用asyncio.wait将task_list转为awaitable
+print('done ', done)
+print('pending ', pending)
+
+// 先创造期物，后赋值
+async def set_after(fut):
+    await asyncio.sleep(2)
+    fut.set_result(6)
+
+async def main():
+    loop = asyncio.get_running_loop()
+    fut = loop.create_future()
+    loop.create_task(set_after(fut)) # 如果没有这一行，程序将永远不会返回，因为fut是一个空的期物
+    data = await fut
+    print(data)
+
+asyncio.run(main())
+
+// concurrent模块创造线程/进程池
+import time
+from concurrent.futures import Future
+from concurrent.futures.thread import ThreadPoolExecutor
+from concurrent.futures.process import ProcessPoolExecutor
+
+def func(value):
+    time.sleep(1)
+    print(value)
+    return 1
+
+pool = ThreadPoolExecutor(max_workers=5)
+#pool = ProcessPoolExecutor(max_workers=5)
+
+for i in range(10):
+    fut = pool.submit(func, i) # 提交任务，i为func的参数， 先提交5个，运行完毕之后再提交5个
+    print(fut)
+
+// 使用 loop.run_in_executor将非协程函数转为协程
+import time
+def func():
+    time.sleep(1)
+    return 1
+
+async def main():
+    loop = asyncio.get_running_loop()
+    fut = loop.run_in_executor(None, func)
+    result = await fut # 转化后变成awaitable
+    print(result)
+
+asyncio.run(main())
+
+// 协程化requests.get
+import asyncio
+import requests
+
+async def download_image(url):
+    # 发送网络请求，下载图片（遇到网络下载图片的IO请求，自动化切换到其他任务）
+    print("开始下载:", url)
+    loop = asyncio.get_event_loop()
+    # requests模块默认不支持异步操作，所以就使用线程池来配合实现了。
+    future = loop.run_in_executor(None, requests.get, url)
+    response = await future
+    print('下载完成')
+    # 图片保存到本地文件
+    file_name = url.rsplit('_')[-1]
+    with open(file_name, mode='wb') as file_object:
+        file_object.write(response.content)
+if __name__ == '__main__':
+    url_list = [
+        'https://www3.autoimg.cn/newsdfs/g26/M02/35/A9/120x90_0_autohomecar__ChsEe12AXQ6AOOH_AAFocMs8nzU621.jpg',
+        'https://www2.autoimg.cn/newsdfs/g30/M01/3C/E2/120x90_0_autohomecar__ChcCSV2BBICAUntfAADjJFd6800429.jpg',
+        'https://www3.autoimg.cn/newsdfs/g26/M0B/3C/65/120x90_0_autohomecar__ChcCP12BFCmAIO83AAGq7vK0sGY193.jpg'
+    ]
+    tasks = [download_image(url) for url in url_list]
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete( asyncio.wait(tasks) )
