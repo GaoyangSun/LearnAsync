@@ -16,7 +16,7 @@ async def others():
 
 async def func():
     print('func start')
-    response = await others()
+    response = await others() # others 函数没有return，就返回None （只要others函数跑完）
     print('fund end')
     return response
 
@@ -53,8 +53,9 @@ async def set_after(fut):
 
 async def main():
     loop = asyncio.get_running_loop()
-    fut = loop.create_future()
-    loop.create_task(set_after(fut)) # 如果没有这一行，程序将永远不会返回，因为fut是一个空的期物
+    fut = loop.create_future() # 创造空期物，先创造running loop
+    # asyncio.create_task(set_after(fut)) # 如果没有这一行，程序将永远不会返回，因为fut是一个空的期物
+    await set_after(fut) # 上面那行没必要，直接await就行，不用添加到loop中
     data = await fut
     print(data)
 
@@ -115,5 +116,4 @@ if __name__ == '__main__':
         'https://www3.autoimg.cn/newsdfs/g26/M0B/3C/65/120x90_0_autohomecar__ChcCP12BFCmAIO83AAGq7vK0sGY193.jpg'
     ]
     tasks = [download_image(url) for url in url_list]
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete( asyncio.wait(tasks) )
+    asyncio.run(asyncio.wait(tasks))
